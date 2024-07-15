@@ -262,7 +262,7 @@ if lights:
 ##################################### MAIN LOOP #############################################
 while True:
     now = ticks_ms()
-    debug_label.text = str(molego_note_order)
+    #debug_label.text = str(molego_note_order)
     enc_sw_held = enc_sw_press_millis !=0  and (now - enc_sw_press_millis > 500)    
     if seq_play:
 ##################################### SEQ HANDLING #############################################
@@ -492,7 +492,7 @@ while True:
                     label2.text=">Key:"+(num2note[scale])+"Maj"
                     label3.text = "Wave:"+waveform_name[wave]
                     label4.text = "Octave: "+str(octave)
-                    label5.text = "MoLego: "+str(molego_time)
+                    label5.text = ""
                     note_label.text=""
                     debug_label.text=""
 

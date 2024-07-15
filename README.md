@@ -12,7 +12,8 @@ Components:
  
    - https://www.tindie.com/products/todbot/macropadsynthplug-turn-rp2040-into-a-synth/
    - https://github.com/todbot/macropadsynthplug
-   - Shipped very quick (even before the board!)  
+   - Shipped very quick (even before the board!)
+   
 A *large* part of the complicated timing and clock-BPM sync was adapted from @todbot's drum machine script (linked above), as well as the many projects he's made involving the RP2040 and audio (including his midisynth and monosynth)
 
 
@@ -24,7 +25,7 @@ A very basic synth (at the moment), the top keys select the various menus displa
 ## Main
 ### 1.0 (Main page 1)
 Selected by default
- - Key [Maj only atm]
+ - Key [Maj only atm - although if you know your relative minors this won't matter XD]
    - selects the root note and changes the scale of the 8 keys
  - Wave [Saw, Square, Sine, DistSine (sine wave convolved with a noise func.), Noise]
  - Octave [-1 - 8]
@@ -45,18 +46,21 @@ ADSR options, since there's only 1 osc at the moment there's not much to configu
 ### 2.2 (Synth page 3)
  - Mono-Legato [on, off]
  - Time [Lower = longer slide time, higher = faster]
-Mono-legato is achieved by attaching a linear LFO (ie, y=x) to the pitch-bend of a note and then bending the previous note to the new note
+
+
+Mono-legato is achieved by attaching a linear LFO (ie, y=x) to the pitch-bend of a note and then bending the previous note to the new note:
  - Mono legato is enabled
  - Note D5 is held, D5 is played
- - Note B5 is held, D5 is turned off, linear LFO with amplitude = the difference between D5 and B5 = 9, and cycle = time is created and attached to D5
- - D5 is played and bends to B5
+ - Note B5 is held, D5 is turned off, linear LFO with amplitude = (the difference between D5 and B5) = 9, and cycle = time, is created and attached to D5
+ - D5 is played and bends to B5 following the pitch curve of the LFO
 
-This function works even when intermediate notes are released.
+This function works even when intermediate notes are released:
  - D5 held, D5 plays
  - B5 held, D5 bends to B5
  - G5 held, B5 bends to G5
   - If G5 is released, G5 bends back down to B5
-  - If G5 is held, and B5 is released, then when G5 is released it will bend down to D5  
+  - If G5 is held, and B5 is released, then when G5 is released it will bend down to D5
+
 In short, when a key is released, it will bend to the most recently played, still-held note.
 
 This works in the sequencer, but only bending up to a note. I can't get it to bend back down after a note has ended.
@@ -64,15 +68,16 @@ This works in the sequencer, but only bending up to a note. I can't get it to be
 
 ## Sequencer
 ### 3.0 (Seq page 1)
-Sequencer BPM is 120. I can't believe I forgot to add a option to change this (editable in the code tho). *TODO*: add bpm option to seq menu
+Sequencer BPM is 120. I can't believe I forgot to add a option to change this (editable in the code tho).  
+**TODO**: add bpm option to seq menu
 
 Pressing the sequencer key once enters the step sequencer mode. Scroll the encoder to select the step to edit (the current step is highlighted).  
  - Pressing a note once turns it red. This is a *hit*, it will be triggered on that beat.  
  - Pressing a hit again turns it blue. This is a *hold*, if, on the beat before, this note was hit, it will hold that note (ie, not turn off between beats)
 
 As mentioned above, a note of differing octaves can occur on the same beat, just without the visual feedback.  
-The sequencer plays as if a user was hitting the notes, so all synth options can be changed as the sequencer is playing.  
-*TODO*: Add options to change different notes' synth options independently (use the orange button to cycle through presets?)
+
+**TODO**: Add options to change different notes' synth options independently (use the orange button to cycle through presets?)
 
 Pressing the encoder to the ">Del" option clears the current step, sweep through the steps to clear all
 
