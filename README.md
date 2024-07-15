@@ -35,6 +35,9 @@ Selected by default
 turns off all active notes (panic button)
 
 ## Synth options
+The synth options are applied at note *start*  
+That means that holding a note and changing synth parameters **will not do anything**, you have to trigger the note again to hear any changes  
+**TODO**: Look at this? Does synthio allow the editing of currently playing notes?
 ### 2.0 (Synth page 1)
 ADSR options, since there's only 1 osc at the moment there's not much to configure so I removed sustain.  
 **If the notes played in the sequencer sound really plucky (and you don't want that), you have to increase the release a bit since they're only hit for a single clock cycle**
@@ -63,7 +66,7 @@ This function works even when intermediate notes are released:
 
 In short, when a key is released, it will bend to the most recently played, still-held note.
 
-This works in the sequencer, but only bending up to a note. I can't get it to bend back down after a note has ended.
+Completely broken in the sequencer. I suspect it has something to do with how the note_off function is handled  
 **TODO**: Fix this 
 
 ## Sequencer
