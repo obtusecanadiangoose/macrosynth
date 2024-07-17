@@ -1,6 +1,6 @@
 # macrosynth
 ###### Demo coming soon™!
-![overview of the macrosynth](mainoverview.jpg)  
+![overview of the macrosynth](images/mainoverview.jpg)  
 A synth for the Adafruit MacroPad RP2040 using TodBot's Synthplug for audio out (a headphone amplifier may be required for headphones, also use a portable battery to avoid the annoying hum when powering the macropad from a computer)
 
 Components:
@@ -20,33 +20,15 @@ A *large* part of the complicated timing and clock-BPM sync was adapted from @to
 
 # Usage
 
-A very basic synth (at the moment), the top keys select the various menus displayed on the screen on the left, with the bottom 8 keys playing the notes root5 -> root6
+A very basic 2osc synth (at the moment), the top keys select the various menus displayed on the screen on the left, with the bottom 8 keys playing the notes root5 -> root6
 
 ## Main
 ### 1.0 (Main page 1)
 Selected by default
  - Key [Maj only atm - although if you know your relative minors this won't matter XD]
    - selects the root note and changes the scale of the 8 keys
- - Wave [Saw, Square, Sine, DistSine (sine wave convolved with a noise func.), Noise]
  - Octave [-1 - 8]
    - Changing the octave and placing a note in the sequencer does not remove the previous note, even if the pad is still lit (ie, C6 and C4 can trigger on the same beat, but the pad will not visually convey this - unsure on fix? Soln: remember what notes you pressed :P)
-
-### 1.1 (Main page 2)
-turns off all active notes (panic button)
-
-## Synth options
-The synth options are applied at note *start*  
-That means that holding a note and changing synth parameters **will not do anything**, you have to trigger the note again to hear any changes  
-**TODO**: Look at this? Does synthio allow the editing of currently playing notes?
-### 2.0 (Synth page 1)
-ADSR options, since there's only 1 osc at the moment there's not much to configure so I removed sustain.  
-**If the notes played in the sequencer sound really plucky (and you don't want that), you have to increase the release a bit since they're only hit for a single clock cycle**
-
-### 2.1 (Synth page 2)
- - Filter Type [None, Low-pass, High-pass, Band-pass]
- - Filter Frequency [50Hz increments]
-
-### 2.2 (Synth page 3)
  - Mono-Legato [on, off]
  - Time [Lower = longer slide time, higher = faster]
 
@@ -65,9 +47,40 @@ This function works even when intermediate notes are released:
   - If G5 is held, and B5 is released, then when G5 is released it will bend down to D5
 
 In short, when a key is released, it will bend to the most recently played, still-held note.
+Because of this, the envelope retriggers as well. Maybe look at solving this (can you add a bend to an existing note?)
 
 Completely broken in the sequencer. I suspect it has something to do with how the note_off function is handled  
 **TODO**: Fix this 
+
+### 1.1 (Main page 2)
+turns off all active notes (panic button)
+
+## Synth options
+The synth options are applied at note *start*  
+That means that holding a note and changing synth parameters **will not do anything**, you have to trigger the note again to hear any changes  
+**TODO**: Look at this? Does synthio allow the editing of currently playing notes?
+### 2.0 (Synth page 1)
+ - Level
+   - volume of the osc, is mapped to the attack level of the envelope
+ - AD(S)R options
+   - I didn't see a need for sustain so I took it out to save on menu space
+   - **If the notes played in the sequencer sound really plucky (and you don't want that), you have to increase the release a bit since they're only hit for a single clock cycle**
+ - Wave [Saw, Square, Sine, DistSine (sine wave convolved with a noise func.), Noise]
+ - Voices [1-5]
+   - works by duplicating the note when played with a random offset defined by the detune amount
+   - **Synthio on the RP2040 supports a MAX of 12 notes, and each voice counts as a note**
+ - DTune
+   - Detune, the amount each voice differs from each other
+
+### 2.1 (Synth page 2)
+Same as above, but for OSC B, level is 0 by default
+
+### 2.2 (Synth page 3)
+ - Filter Type [None, Low-pass, High-pass, Band-pass]
+ - Filter Frequency
+ - Filter interval
+   - How many Hz the frequency is adjusted by
+
 
 ## Sequencer
 ### 3.0 (Seq page 1)

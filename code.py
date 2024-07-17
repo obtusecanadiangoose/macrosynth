@@ -73,7 +73,7 @@ def get_note(button, scale, octave, type):
 
 #macropad = MacroPad()
 encoder = None
-
+#
 #===========#
 debug = True
 lights = True
@@ -133,7 +133,8 @@ led_min = 5  # how much to fade LEDs by
 led_fade = 10 # how much to fade LEDs by
 update_step_millis()
 
-SAMPLE_RATE = 44100  # clicks @ 36kHz & 48kHz on rp2040
+#SAMPLE_RATE = 44100  # clicks @ 36kHz & 48kHz on rp2040
+SAMPLE_RATE = 44100
 SAMPLE_SIZE = 256    # we like powers of two
 VOLUME = 16384
 #VOLUME = 25000
@@ -145,13 +146,14 @@ wave_noise = np.array([random.randint(-VOLUME, VOLUME) for i in range(SAMPLE_SIZ
 wave_sin_dirty = np.array( wave_sin + (wave_noise/4), dtype=np.int16)
 waveforms = (wave_saw, wave_squ, wave_sin, wave_sin_dirty, wave_noise)
 waveform_name = ["Saw", "Square", "Sine", "DistSine", "Noise"]
-wave = 0
+osc1_wave = 0
+osc2_wave = 0
 
 synth = synthio.Synthesizer(sample_rate=SAMPLE_RATE, channel_count=2)  # note: no envelope or waveform, we do that in Note now!
 audio = audiopwmio.PWMAudioOut(board.SDA) # macropadsynthplug!
 
 mixer = audiomixer.Mixer(channel_count=2, voice_count=2, 
-                         sample_rate=SAMPLE_RATE, buffer_size=4096)
+                         sample_rate=SAMPLE_RATE, buffer_size=8192) #buffer_size=4096)
 audio.play(mixer)
 mixer.voice[0].play(synth)
 mixer.voice[0].level = 1
@@ -159,29 +161,41 @@ mixer.voice[0].level = 1
 #audio.play(synth) # attach mixer to audio playback
 
 
-num_oscs = 1  # how many oscillators per note
+num_oscs_a = 1  # how many oscillators per note
+num_oscs_b = 1
 max_oscs = 5
-osc_detune = 0.01 # how much detune (fatness)
+osc_detune_a = 0.01 # how much detune (fatness)
+osc_detune_b = 0.01 
 
 notes_pressed = {}  # which notes are currently being pressed, and their note objects (so we can unpress them)
 mod_val = 0.5  # ranges 0-1
 
-a, d, s, r = 0.0, 0.0, 0.0, 0.0
+a1, d1, s1, r1, lvl1 = 0.0, 0.0, 0.0, 0.0, 1.0
+a2, d2, s2, r2, lvl2 = 0.0, 0.0, 0.0, 0.0, 0.0
 amp_filter = None
 filter_sel = 0
 filters = ["None", "LP", "HP", "BP"]
 filter_peak = 0
 filter_freq = 0
+filter_int = 50
 molego_time=5
+osc_a_notes = []
+osc_b_notes = []
 
 triangle_wave = 20000 * (np.linspace(0, 1 * np.pi, SAMPLE_SIZE, endpoint=False) / (2 * np.pi) - np.floor(0.5 + np.linspace(0, 1 * np.pi, SAMPLE_SIZE, endpoint=False) / (2 * np.pi)))
 triangle_wave_int16 = np.array(triangle_wave, dtype=np.int16)
                                                                 #Don't ask me why, I don't know
 vibrato=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334, offset= 0.0, phase_offset= 0.0, once=True, interpolate=True)
 
+##################################### NOTE ON #############################################
+
 def note_on(notenum, bender):
-    amp_env = synthio.Envelope(attack_time=a, decay_time=d, release_time=r,
-                               attack_level=1)
+    osc1_env = synthio.Envelope(attack_time=a1, decay_time=d1, release_time=r1,
+                               attack_level=lvl1)
+    
+    osc2_env = synthio.Envelope(attack_time=a2, decay_time=d2, release_time=r2,
+                               attack_level=lvl2)
+    
     if filter_sel == 0:
         amp_filter = None
     elif filter_sel == 1:
@@ -191,19 +205,40 @@ def note_on(notenum, bender):
     elif filter_sel == 3:
         amp_filter = synth.band_pass_filter(frequency=filter_freq)
 
-    waveform = waveforms[wave]
     notes = []
     f = synthio.midi_to_hz(notenum)
-    for i in range(num_oscs):
-    #     #  add detuning to oscillators + a bit of random so phases w/ other notes don't perfectly align
-         fr = f * (1 + (osc_detune*i) + (random.random()/1000) )
-         vibrato.retrigger()
-         notes.append( synthio.Note( frequency=fr, envelope=amp_env, waveform=waveform, filter=amp_filter, 
-                                    bend=bender
-                                    ) )
+
+    #oscA
+    if lvl1 > 0.0:
+        for i in range(num_oscs_a):
+        #     #  add detuning to oscillators + a bit of random so phases w/ other notes don't perfectly align
+            fr = f * (1 + (osc_detune_a*i) + (random.random()/1000) )
+            vibrato.retrigger()
+            #oscA
+            osc_a_notes.append( synthio.Note( frequency=fr, envelope=osc1_env, waveform=waveforms[osc1_wave], filter=amp_filter, 
+                                        bend=bender
+                                        ) )
+         
+    #oscB
+    if lvl2 > 0.0:
+        for i in range(num_oscs_b):
+        #     #  add detuning to oscillators + a bit of random so phases w/ other notes don't perfectly align
+            fr = f * (1 + (osc_detune_b*i) + (random.random()/1000) )
+            vibrato.retrigger()
+            #oscB
+            osc_b_notes.append( synthio.Note( frequency=fr, envelope=osc2_env, waveform=waveforms[osc2_wave], filter=amp_filter, 
+                                        bend=bender
+                                        ) )
+            
+    for note in osc_b_notes:
+        notes.append(note)
+    for note in osc_a_notes:
+        notes.append(note)
+
     #     print("fr:")
     #notes.append( synthio.Note( frequency=164.82, envelope=amp_env, waveform=waveform) )
     notes_pressed[notenum] = notes
+
     synth.press(notes)
     
 
@@ -212,6 +247,40 @@ def note_off(notenum):
     if notes:
         synth.release(notes)
         del notes_pressed[notenum]
+        for note in notes:
+            if note in osc_a_notes:
+                osc_a_notes.remove(note)
+            elif note in osc_b_notes:
+                osc_b_notes.remove(note)
+
+def reset_a_env(): #won't do anything because triggers on hit?
+    for note in osc_a_notes:
+        notes_pressed[note][0].envelope = synthio.Envelope(attack_time=a1, decay_time=d1, release_time=r1, attack_level=lvl1)
+
+def reset_b_env(): #won't do anything because triggers on hit?
+    for note in osc_b_notes:
+        notes_pressed[note][0].envelope = synthio.Envelope(attack_time=a2, decay_time=d2, release_time=r2, attack_level=lvl2)
+
+def reset_a_wave():
+    for note in osc_a_notes:
+        notes_pressed[note][0].waveform = waveforms[osc1_wave]
+
+def reset_b_wave():
+    for note in osc_a_notes:
+        notes_pressed[note][0].waveform = waveforms[osc1_wave]
+
+def reset_filter():
+    if filter_sel == 0:
+        amp_filter = None
+    elif filter_sel == 1:
+        amp_filter = synth.low_pass_filter(frequency=filter_freq)
+    elif filter_sel == 2:
+        amp_filter = synth.high_pass_filter(frequency=filter_freq)
+    elif filter_sel == 3:
+        amp_filter = synth.band_pass_filter(frequency=filter_freq)
+
+    for note in notes_pressed:
+        notes_pressed[note][0].filter=amp_filter
 
 ##################################### SETUP #############################################
 #which mode is which button and colour
@@ -232,15 +301,18 @@ molego_note_order = [] #The order of notes played in molego mode
                          #"-Chrd Mode-"
 label1 = Label(font, text="-  Main   -",       x=0, y=10)
 label2 = Label(font, text=">Key:CMaj",       x=0, y=20)
-label3 = Label(font, text="Wave: Saw",       x=0, y=30)
-label4 = Label(font, text="Octave: 5",       x=0, y=40)
-label5 = Label(font, text="",       x=0, y=50)
+label3 = Label(font, text="Octave: 5",       x=0, y=30)
+label4 = Label(font, text="MoLego:Off",       x=0, y=40)
+label5 = Label(font, text="MoTime:5",       x=0, y=50)
+label6 = Label(font, text="",       x=0, y=60)
+label7 = Label(font, text="",       x=0, y=70)
+label8 = Label(font, text="",       x=0, y=80)
 note_label = Label(font, text="",       x=0, y=110)
 debug_label = Label(font, text="",       x=0, y=120)
 
-changable_labels = [label2, label3, label4, label5, label1]
+changable_labels = [label2, label3, label4, label5, label6, label7, label8, label1]
 
-for label in ([label2, label1, label3, label4, label5, note_label, debug_label]):
+for label in ([label2, label1, label3, label4, label5, label6, label7, label8, note_label, debug_label]):
     mainscreen.append(label)
 
 
@@ -262,7 +334,7 @@ if lights:
 ##################################### MAIN LOOP #############################################
 while True:
     now = ticks_ms()
-    #debug_label.text = str(molego_note_order)
+    #debug_label.text = str(reset_env())
     enc_sw_held = enc_sw_press_millis !=0  and (now - enc_sw_press_millis > 500)    
     if seq_play:
 ##################################### SEQ HANDLING #############################################
@@ -460,10 +532,13 @@ while True:
                     encoder_mode = 0
                     label1.text="-  Main   -"
                     label2.text=">Key:"+(num2note[scale])+"Maj"
-                    label3.text = "Wave:"+waveform_name[wave]
-                    label4.text = "Octave: "+str(octave)
-                    #label5.text = "MoLego:"+molego[molego_onoff]
-                    label5.text = ""
+                    #label3.text = "Wave:"+waveform_name[wave]
+                    label3.text = "Octave: "+str(octave)
+                    label4.text = "MoLego:"+molego[molego_onoff]
+                    label5.text = "MoTime:"+str(molego_time)
+                    label6.text=""
+                    label7.text=""
+                    label8.text=""
                     note_label.text=""
                     debug_label.text=""
 
@@ -473,6 +548,9 @@ while True:
                     label3.text = "NOTES"
                     label4.text="OFF"
                     label5.text=""
+                    label6.text=""
+                    label7.text=""
+                    label8.text=""
                     note_label.text=""
                     debug_label.text=""
                     synth.release_all()
@@ -490,9 +568,13 @@ while True:
                     encoder_mode = 0
                     label1.text="-  Main   -"
                     label2.text=">Key:"+(num2note[scale])+"Maj"
-                    label3.text = "Wave:"+waveform_name[wave]
-                    label4.text = "Octave: "+str(octave)
-                    label5.text = ""
+                    #label3.text = "Wave:"+waveform_name[wave]
+                    label3.text = "Octave: "+str(octave)
+                    label4.text = "MoLego:"+molego[molego_onoff]
+                    label5.text = "MoTime:"+str(molego_time)
+                    label6.text=""
+                    label7.text=""
+                    label8.text=""
                     note_label.text=""
                     debug_label.text=""
 
@@ -506,33 +588,51 @@ while True:
                     leds.show()
                     mode = 1.1
                     encoder_mode = 0
-                    label1.text="-  ADSR   -"
-                    label2.text=">Atk:"+str(a)
-                    label3.text = "Dcy:"+str(d)
-                    label4.text="Rls:"+str(r)
-                    label5.text=""
+                   #label1.text="-  ADSR   -"
+                    label1.text="-  OSC A  -"
+                    label2.text=">Level:"+str(lvl1)
+                    label3.text="Atk:"+str(a1)
+                    label4.text="Dcy:"+str(d1)
+                    label5.text="Rls:"+str(r1)
+                    label6.text="Wave:"+str(waveform_name[osc1_wave])
+                    label7.text="Voices:"+str(num_oscs_a)
+                    label8.text="Dtune:"+str(osc_detune_a)
                     note_label.text=""
                     debug_label.text=""
 
-                elif mode == 1.1:   #Filter
+                elif mode == 1.1:   #Osc 2
                     mode = 1.2
+                    encoder_mode = 0
+                    label1.text="-  OSC B  -"
+                    label2.text=">Level:"+str(lvl2)
+                    label3.text="Atk:"+str(a2)
+                    label4.text="Dcy:"+str(d2)
+                    label5.text="Rls:"+str(r2)
+                    label6.text="Wave:"+str(waveform_name[osc2_wave])
+                    label7.text="Voices:"+str(num_oscs_b)
+                    label8.text="Dtune:"+str(osc_detune_b)
+                    note_label.text=""
+                    debug_label.text=""
+                
+                elif mode == 1.2:   #Filter
+                    mode = 1.3
+                    # encoder_mode = 0
+                    # label1.text="- MOLEGO  -"
+                    # label2.text=">"+molego[molego_onoff]
+                    # label3.text = "Time:"+str(molego_time)
+                    # label4.text=""
+                    # label5.text=""
+                    # note_label.text=""
+                    # debug_label.text=""
                     encoder_mode = 0
                     label1.text="- FILTER  -"
                     label2.text=">Type:"+filters[filter_sel]
                     label3.text = "Freq:"+str(filter_freq)
-                    label4.text=""
+                    label4.text="int:"+str(filter_int)
                     label5.text=""
-                    note_label.text=""
-                    debug_label.text=""
-                
-                elif mode == 1.2:   #molego
-                    mode = 1.3
-                    encoder_mode = 0
-                    label1.text="- MOLEGO  -"
-                    label2.text=">"+molego[molego_onoff]
-                    label3.text = "Time:"+str(molego_time)
-                    label4.text=""
-                    label5.text=""
+                    label6.text=""
+                    label7.text=""
+                    label8.text=""
                     note_label.text=""
                     debug_label.text=""
 
@@ -565,6 +665,9 @@ while True:
                     label3.text = "Del"
                     label4.text=""
                     label5.text=""
+                    label6.text=""
+                    label7.text=""
+                    label8.text=""
                     note_label.text=""
                     debug_label.text=""
 
@@ -578,6 +681,9 @@ while True:
                     label3.text = ""
                     label4.text=""
                     label5.text=""
+                    label6.text=""
+                    label7.text=""
+                    label8.text=""
                     note_label.text=""
                     debug_label.text=""
 
@@ -589,18 +695,25 @@ while True:
             enc_sw_press_millis = now
         if enc_sw.released:
             if not enc_sw_held:  # press & release not press-hold
-                if mode == 2.1 or mode == 1.2 or mode == 1.3: #main page 1 -> 2 options
+                if mode == 2.1: #2 options
                     changable_labels[encoder_mode].text = changable_labels[encoder_mode].text[1:]
                     encoder_mode = (encoder_mode + 1) % 2
                     changable_labels[encoder_mode].text = ">"+changable_labels[encoder_mode].text
-                elif mode == 0.1 or mode == 1.1: #adsr page 1 -> 3 options
+
+                elif mode == 1.3 : #3 options
                     changable_labels[encoder_mode].text = changable_labels[encoder_mode].text[1:]
                     encoder_mode = (encoder_mode + 1) % 3
                     changable_labels[encoder_mode].text = ">"+changable_labels[encoder_mode].text
-                # elif mode == 0.1: #main page 1 -> 4 options
-                #     changable_labels[encoder_mode].text = changable_labels[encoder_mode].text[1:]
-                #     encoder_mode = (encoder_mode + 1) % 4
-                #     changable_labels[encoder_mode].text = ">"+changable_labels[encoder_mode].text
+
+                elif mode == 0.1:
+                    changable_labels[encoder_mode].text = changable_labels[encoder_mode].text[1:]
+                    encoder_mode = (encoder_mode + 1) % 4
+                    changable_labels[encoder_mode].text = ">"+changable_labels[encoder_mode].text
+
+                elif mode == 1.1 or mode == 1.2: #main page 1 -> 4 options
+                    changable_labels[encoder_mode].text = changable_labels[encoder_mode].text[1:]
+                    encoder_mode = (encoder_mode + 1) % 7
+                    changable_labels[encoder_mode].text = ">"+changable_labels[encoder_mode].text
                 
                 if mode == 2.1 and encoder_mode == 1: #clear current pattern
                     for i in range(8):
@@ -625,17 +738,7 @@ while True:
                 scale += encoder_delta
                 label2.text = ">Key:"+(num2note[scale])+"Maj"
 
-            elif encoder_mode == 1:  # mode 2 == change wave
-                encoder_delta = (encoder_val - encoder_val_last)
-                encoder_val_last = encoder_val
-                if wave+encoder_delta > 4:
-                    encoder_delta -= 5
-                elif wave+encoder_delta < 0:
-                    encoder_delta += 5
-                wave += encoder_delta
-                label3.text = ">Wave:"+waveform_name[wave]
-
-            elif encoder_mode == 2:  # mode 3 == change octave
+            elif encoder_mode == 1:  # mode 2 == change octave
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
                 if octave+encoder_delta > 9:
@@ -643,34 +746,167 @@ while True:
                 elif octave+encoder_delta < -1:
                     encoder_delta += 10
                 octave += encoder_delta
-                label4.text = ">Octave: "+str(octave)
+                label3.text = ">Octave: "+str(octave)
 
-        elif mode == 1.1: #adsr mode page 1
-            if encoder_mode == 0:  # change atk
+            elif encoder_mode == 2:  # mode 3 == change molego on/off
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
-                if a + encoder_delta*0.01 >= 0 and a + encoder_delta*0.01 <= 1:
-                    a += encoder_delta*0.01
-                    a = round(a, 2)
-                label2.text=">Atk:"+str(a)
+                if molego_onoff+encoder_delta > 1:
+                    encoder_delta -= 2
+                elif molego_onoff+encoder_delta < 0:
+                    encoder_delta += 2
+                molego_onoff += encoder_delta
+                label4.text=">MoLego:"+molego[molego_onoff]
 
-            elif encoder_mode == 1:  # change decay
+            elif encoder_mode == 3:  # change molego time
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
-                if d + encoder_delta*0.01 >= 0 and d + encoder_delta*0.01 <= 1:
-                    d += encoder_delta*0.01
-                    d = round(d, 2)
-                label3.text=">Dcy:"+str(d)
+                molego_time += encoder_delta
+                label5.text = ">MoTime:"+str(molego_time)
 
-            elif encoder_mode == 2:  # change release
+        # label1.text="-OSCA OPTS-"
+        # label2.text=">Level:"+str(lvl1)
+        # label3.text="Atk:"+str(a1)
+        # label4.text="Dcy:"+str(d1)
+        # label5.text="Rls:"+str(r1)
+        # label6.text="Wave:"+str(waveform_name[osc1_wave])
+        # label7.text="Voices:"+str(num_oscs_a)
+        # label8.text="Dtune:"+str(osc_detune_a)
+
+        elif mode == 1.1: #Osc A
+            if encoder_mode == 0:  # mode 1 == change lvl
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
-                if r + encoder_delta*0.01 >= 0 and r + encoder_delta*0.01 <= 1:
-                    r += encoder_delta*0.01
-                    r = round(r, 2)
-                label4.text=">Rls:"+str(r)
+                if lvl1 + encoder_delta*0.1 >= 0 and lvl1 + encoder_delta*0.1 <= 1:
+                    lvl1 += encoder_delta*0.1
+                    lvl1 = round(lvl1, 1)
+                label2.text=">Level:"+str(lvl1)
+                reset_a_env()
+            
 
-        elif mode == 1.2: #adsr mode page 2
+            elif encoder_mode == 1:  # change atk
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if a1 + encoder_delta*0.01 >= 0 and a1 + encoder_delta*0.01 <= 1:
+                    a1 += encoder_delta*0.01
+                    a1 = round(a1, 2)
+                label3.text=">Atk:"+str(a1)
+                reset_a_env()
+                
+
+            elif encoder_mode == 2:  # change decay
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if d1 + encoder_delta*0.01 >= 0 and d1 + encoder_delta*0.01 <= 1:
+                    d1 += encoder_delta*0.01
+                    d1 = round(d1, 2)
+                label4.text=">Dcy:"+str(d1)
+                reset_a_env()
+                
+
+            elif encoder_mode == 3:  # change release
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if r1 + encoder_delta*0.01 >= 0 and r1 + encoder_delta*0.01 <= 1:
+                    r1 += encoder_delta*0.01
+                    r1 = round(r1, 2)
+                label5.text=">Rls:"+str(r1)
+                reset_a_env()
+
+            elif encoder_mode == 4:  # change wave
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if osc1_wave+encoder_delta > 4:
+                    encoder_delta -= 5
+                elif osc1_wave+encoder_delta < 0:
+                    encoder_delta += 5
+                osc1_wave += encoder_delta
+                label6.text = ">Wave:"+waveform_name[osc1_wave]
+                reset_a_wave()
+
+            elif encoder_mode == 5:  # change voices
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if num_oscs_a + encoder_delta >= 1 and num_oscs_a + encoder_delta <= 5:
+                    num_oscs_a += encoder_delta
+                label7.text=">Voices:"+str(num_oscs_a)
+
+            elif encoder_mode == 6:  # change release
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if osc_detune_a + encoder_delta*0.01 >= 0 and osc_detune_a + encoder_delta*0.01 <= 1:
+                    osc_detune_a += encoder_delta*0.01
+                    osc_detune_a = round(osc_detune_a, 2)
+                label8.text=">Dtune:"+str(osc_detune_a)
+
+        elif mode == 1.2: #Osc B
+            if encoder_mode == 0:  # mode 1 == change lvl
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if lvl2 + encoder_delta*0.1 >= 0 and lvl2 + encoder_delta*0.1 <= 1:
+                    lvl2 += encoder_delta*0.1
+                    lvl2 = round(lvl2, 1)
+                label2.text=">Level:"+str(lvl2)
+                reset_b_env()
+            
+
+            elif encoder_mode == 1:  # change atk
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if a2 + encoder_delta*0.01 >= 0 and a2 + encoder_delta*0.01 <= 1:
+                    a2 += encoder_delta*0.01
+                    a2 = round(a2, 2)
+                label3.text=">Atk:"+str(a2)
+                reset_b_env()
+                
+
+            elif encoder_mode == 2:  # change decay
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if d2 + encoder_delta*0.01 >= 0 and d2 + encoder_delta*0.01 <= 1:
+                    d2 += encoder_delta*0.01
+                    d2 = round(d2, 2)
+                label4.text=">Dcy:"+str(d2)
+                reset_b_env()
+                
+
+            elif encoder_mode == 3:  # change release
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if r2 + encoder_delta*0.01 >= 0 and r2 + encoder_delta*0.01 <= 1:
+                    r2 += encoder_delta*0.01
+                    r2 = round(r2, 2)
+                label5.text=">Rls:"+str(r2)
+                reset_b_env()
+
+            elif encoder_mode == 4:  # change wave
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if osc2_wave+encoder_delta > 4:
+                    encoder_delta -= 5
+                elif osc2_wave+encoder_delta < 0:
+                    encoder_delta += 5
+                osc2_wave += encoder_delta
+                label6.text = ">Wave:"+waveform_name[osc2_wave]
+                reset_b_wave()
+
+            elif encoder_mode == 5:  # change voices
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if num_oscs_b + encoder_delta >= 1 and num_oscs_b + encoder_delta <= 5:
+                    num_oscs_b += encoder_delta
+                label7.text=">Voices:"+str(num_oscs_b)
+
+            elif encoder_mode == 6:  # change release
+                encoder_delta = (encoder_val - encoder_val_last)
+                encoder_val_last = encoder_val
+                if osc_detune_b + encoder_delta*0.01 >= 0 and osc_detune_b + encoder_delta*0.01 <= 1:
+                    osc_detune_b += encoder_delta*0.01
+                    osc_detune_b = round(osc_detune_b, 2)
+                label8.text=">Dtune:"+str(osc_detune_b)
+                
+
+        elif mode == 1.3: #adsr mode page 2
             if encoder_mode == 0:  # change filter
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
@@ -680,30 +916,24 @@ while True:
                     encoder_delta += 4
                 filter_sel += encoder_delta
                 label2.text=">Type:"+filters[filter_sel]
+                reset_filter()
 
             elif encoder_mode == 1:  # change freq
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
-                if filter_freq + encoder_delta*50 >= 0: #and filter_freq + encoder_delta*100 <= 16000:
-                    filter_freq += encoder_delta*50
+                if filter_freq + encoder_delta*filter_int >= 1: #and filter_freq + encoder_delta*100 <= 16000:
+                    filter_freq += encoder_delta*filter_int
                 label3.text = ">Freq:"+str(filter_freq)
+                reset_filter()
 
-        elif mode == 1.3: #adsr mode page 3 -> molego
-            if encoder_mode == 0:  # change on/off
+            elif encoder_mode == 2:  # change freq interval
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
-                if molego_onoff+encoder_delta > 1:
-                    encoder_delta -= 2
-                elif molego_onoff+encoder_delta < 0:
-                    encoder_delta += 2
-                molego_onoff += encoder_delta
-                label2.text=">"+molego[molego_onoff]
+                if filter_int + encoder_delta*50 >= 0: #and filter_freq + encoder_delta*100 <= 16000:
+                    filter_int += encoder_delta*50
+                label4.text = ">int:"+str(filter_int)           
 
-            elif encoder_mode == 1:  # change time
-                encoder_delta = (encoder_val - encoder_val_last)
-                encoder_val_last = encoder_val
-                molego_time += encoder_delta
-                label3.text = ">Time:"+str(molego_time)
+            
 
 #implement steps first
         elif mode == 2.1: #seq step mode
