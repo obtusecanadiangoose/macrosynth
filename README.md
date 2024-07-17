@@ -56,9 +56,7 @@ Completely broken in the sequencer. I suspect it has something to do with how th
 turns off all active notes (panic button)
 
 ## Synth options
-The synth options are applied at note *start*  
-That means that holding a note and changing synth parameters **will not do anything**, you have to trigger the note again to hear any changes  
-**TODO**: Look at this? Does synthio allow the editing of currently playing notes?
+editing the envelope or voicing requires the note to be retriggered, but the wave type and filter can be adjusted while the note is being held
 ### 2.0 (Synth page 1)
  - Level
    - volume of the osc, is mapped to the attack level of the envelope
