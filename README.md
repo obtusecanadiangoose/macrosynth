@@ -1,7 +1,8 @@
 # macrosynth
 ###### Demo coming soon™!
 ![overview of the macrosynth](images/mainoverview.jpg)  
-A synth for the Adafruit MacroPad RP2040 using TodBot's Synthplug for audio out (a headphone amplifier may be required for headphones, also use a portable battery to avoid the annoying hum when powering the macropad from a computer)
+A synth for the Adafruit MacroPad RP2040 using TodBot's Synthplug for audio out.  
+A headphone amplifier may be required to use headphones, and a portable battery can avoid the annoying hum when powering the macropad from a computer.
 
 Components:
  - Adafruit MacroPad RP2040 (CAD$77)
@@ -14,13 +15,13 @@ Components:
    - https://github.com/todbot/macropadsynthplug
    - Shipped very quick (even before the board!)
    
-A *large* part of the complicated timing and clock-BPM sync was adapted from @todbot's drum machine script (linked above), as well as the many projects he's made involving the RP2040 and audio (including his midisynth and monosynth)
+A *large* part of the complicated timing and clock/BPM sync was adapted from @todbot's drum machine project (linked above)
 
 
 
 # Usage
 
-A very basic 2osc synth (at the moment), the top keys select the various menus displayed on the screen on the left, with the bottom 8 keys playing the notes root5 -> root6
+A very basic 2x osc synth (at the moment), the top keys select the various menus displayed on the screen on the left, with the bottom 8 keys playing the notes root5 -> root6
 
 ## Main
 ### 1.0 (Main page 1)
@@ -33,11 +34,7 @@ Selected by default
  - Time [Lower = longer slide time, higher = faster]
 
 
-Mono-legato is achieved by attaching a linear LFO (ie, y=x) to the pitch-bend of a note and then bending the previous note to the new note:
- - Mono legato is enabled
- - Note D5 is held, D5 is played
- - Note B5 is held, D5 is turned off, linear LFO with amplitude = (the difference between D5 and B5) = 9, and cycle = time, is created and attached to D5
- - D5 is played and bends to B5 following the pitch curve of the LFO
+Mono-legato is achieved by attaching a linear LFO (ie, y=x) to the pitch-bend of a note to bend it to the new note:
 
 This function works even when intermediate notes are released:
  - D5 held, D5 plays
@@ -47,7 +44,6 @@ This function works even when intermediate notes are released:
   - If G5 is held, and B5 is released, then when G5 is released it will bend down to D5
 
 In short, when a key is released, it will bend to the most recently played, still-held note.
-Because of this, the envelope retriggers as well. Maybe look at solving this (can you add a bend to an existing note?)
 
 Completely broken in the sequencer. I suspect it has something to do with how the note_off function is handled  
 **TODO**: Fix this 
@@ -56,7 +52,7 @@ Completely broken in the sequencer. I suspect it has something to do with how th
 turns off all active notes (panic button)
 
 ## Synth options
-editing the envelope or voicing requires the note to be retriggered, but the wave type and filter can be adjusted while the note is being held
+editing the detune or voicing requires the note to be retriggered, but the wave type and filter can be adjusted while the note is being held
 ### 2.0 (Synth page 1)
  - Level
    - volume of the osc, is mapped to the attack level of the envelope
@@ -64,19 +60,20 @@ editing the envelope or voicing requires the note to be retriggered, but the wav
    - I didn't see a need for sustain so I took it out to save on menu space
    - **If the notes played in the sequencer sound really plucky (and you don't want that), you have to increase the release a bit since they're only hit for a single clock cycle**
  - Wave [Saw, Square, Sine, DistSine (sine wave convolved with a noise func.), Noise]
- - Voices [1-5]
-   - works by duplicating the note when played with a random offset defined by the detune amount
+ - Voices [1-12]
+   - Works by duplicating the note when played with a random offset defined by the detune amount
    - **Synthio on the RP2040 supports a MAX of 12 notes, and each voice counts as a note**
  - DTune
-   - Detune, the amount each voice differs from each other
+   - Detune: the amount each voice differs from each other. Each voice is placed this amount higher or lower than the previous one.
+   - ie: voice 1 = freq, voice 2 = freq + detune\*1 (up), voice 3 = freq + -detune\*2 (down), etc
 
 ### 2.1 (Synth page 2)
-Same as above, but for OSC B, level is 0 by default
+Same as above, but for OSC B. Level is 0 by default
 
 ### 2.2 (Synth page 3)
  - Filter Type [None, Low-pass, High-pass, Band-pass]
  - Filter Frequency
- - Filter interval
+ - Filter increments
    - How many Hz the frequency is adjusted by
 
 
@@ -99,4 +96,4 @@ Pressing the encoder to the ">Del" option clears the current step, sweep through
 Press the sequencer key again to play the sequence, turn the encoder on this screen to expand the steps (doubles the current steps), with different colours to signify where you are in 2 bar loop (Pink -> Blue -> Yellow -> White)   
 **TODO**: 8 steps = 0.5 Bar is kinda weird, maybe allow user to change how long each step is?
 
-While the sequencer is playing, you can leave the sequencer page and it will continue playing, allowing you to change the synth options or the wavetype as the sequence plays
+While the sequencer is playing, you can leave the sequencer page and it will continue playing, allowing you to change the synth options as the sequence plays

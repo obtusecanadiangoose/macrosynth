@@ -184,6 +184,12 @@ osc_b_notes = []
 
 triangle_wave = 20000 * (np.linspace(0, 1 * np.pi, SAMPLE_SIZE, endpoint=False) / (2 * np.pi) - np.floor(0.5 + np.linspace(0, 1 * np.pi, SAMPLE_SIZE, endpoint=False) / (2 * np.pi)))
 triangle_wave_int16 = np.array(triangle_wave, dtype=np.int16)
+
+neg_triangle_wave = -(20000 * (np.linspace(0, 1 * np.pi, SAMPLE_SIZE, endpoint=False) / (2 * np.pi) - np.floor(0.5 + np.linspace(0, 1 * np.pi, SAMPLE_SIZE, endpoint=False) / (2 * np.pi))))
+neg_triangle_wave_int16 = np.array(neg_triangle_wave, dtype=np.int16)
+
+
+
                                                                 #Don't ask me why, I don't know
 vibrato=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334, offset= 0.0, phase_offset= 0.0, once=True, interpolate=True)
 
@@ -212,7 +218,12 @@ def note_on(notenum, bender):
     if lvl1 > 0.0:
         for i in range(num_oscs_a):
         #     #  add detuning to oscillators + a bit of random so phases w/ other notes don't perfectly align
-            fr = f * (1 + (osc_detune_a*i) + (random.random()/1000) )
+            #fr = f * (1 + (osc_detune_a*i) + (random.random()/1000) )
+            #detune around the root note
+            fr = f * ((1 + osc_detune_a * i * (1 if i % 2 != 0 else -1)) + (random.random()/1000) )
+            if fr < 0:
+                fr = 0
+
             vibrato.retrigger()
             #oscA
             osc_a_notes.append( synthio.Note( frequency=fr, envelope=osc1_env, waveform=waveforms[osc1_wave], filter=amp_filter, 
@@ -222,8 +233,9 @@ def note_on(notenum, bender):
     #oscB
     if lvl2 > 0.0:
         for i in range(num_oscs_b):
-        #     #  add detuning to oscillators + a bit of random so phases w/ other notes don't perfectly align
-            fr = f * (1 + (osc_detune_b*i) + (random.random()/1000) )
+            fr = f * (1 + osc_detune_b * i * (1 if i % 2 != 0 else -1) + (random.random()/1000) )
+            if fr < 0:
+                fr = 0
             vibrato.retrigger()
             #oscB
             osc_b_notes.append( synthio.Note( frequency=fr, envelope=osc2_env, waveform=waveforms[osc2_wave], filter=amp_filter, 
@@ -253,34 +265,51 @@ def note_off(notenum):
             elif note in osc_b_notes:
                 osc_b_notes.remove(note)
 
-def reset_a_env(): #won't do anything because triggers on hit?
-    for note in osc_a_notes:
-        notes_pressed[note][0].envelope = synthio.Envelope(attack_time=a1, decay_time=d1, release_time=r1, attack_level=lvl1)
+def reset_a_env():
+    try: #sometimes you turn faster than the dict updates
+        for note in osc_a_notes:
+            notes_pressed[note][0].envelope = synthio.Envelope(attack_time=a1, decay_time=d1, release_time=r1, attack_level=lvl1)
+    except:
+        pass
 
-def reset_b_env(): #won't do anything because triggers on hit?
-    for note in osc_b_notes:
-        notes_pressed[note][0].envelope = synthio.Envelope(attack_time=a2, decay_time=d2, release_time=r2, attack_level=lvl2)
+def reset_b_env():
+    try:
+        for note in osc_b_notes:
+            notes_pressed[note][0].envelope = synthio.Envelope(attack_time=a2, decay_time=d2, release_time=r2, attack_level=lvl2)
+    except:
+        pass
 
 def reset_a_wave():
-    for note in osc_a_notes:
-        notes_pressed[note][0].waveform = waveforms[osc1_wave]
+    try:
+        for note in osc_a_notes:
+            notes_pressed[note][0].waveform = waveforms[osc1_wave]
+    except:
+        pass
 
 def reset_b_wave():
-    for note in osc_a_notes:
-        notes_pressed[note][0].waveform = waveforms[osc1_wave]
+    try:
+        for note in osc_a_notes:
+            notes_pressed[note][0].waveform = waveforms[osc1_wave]
+    except:
+        pass
 
 def reset_filter():
-    if filter_sel == 0:
-        amp_filter = None
-    elif filter_sel == 1:
-        amp_filter = synth.low_pass_filter(frequency=filter_freq)
-    elif filter_sel == 2:
-        amp_filter = synth.high_pass_filter(frequency=filter_freq)
-    elif filter_sel == 3:
-        amp_filter = synth.band_pass_filter(frequency=filter_freq)
+    try:
+        if filter_sel == 0:
+            amp_filter = None
+        elif filter_sel == 1:
+            amp_filter = synth.low_pass_filter(frequency=filter_freq)
+        elif filter_sel == 2:
+            amp_filter = synth.high_pass_filter(frequency=filter_freq)
+        elif filter_sel == 3:
+            amp_filter = synth.band_pass_filter(frequency=filter_freq)
 
-    for note in notes_pressed:
-        notes_pressed[note][0].filter=amp_filter
+        for note in osc_a_notes:
+            note.filter=amp_filter
+        for note in osc_b_notes:
+            note.filter=amp_filter
+    except:
+        pass
 
 ##################################### SETUP #############################################
 #which mode is which button and colour
@@ -349,44 +378,43 @@ while True:
                 #     note_off(note[0])
                 #if note[0][:1] in sequence[seq_pos]: 
                 held = False
-                if molego_onoff == 0:
-                    for note_curr in sequence[seq_pos]:
-                        if note_prev[:1] == note_curr[:1]:# if the previous note is also in the current step
-                            if note_curr[2] == "hit":
-                                note_off(note_prev[0]) #if its a hit, turn it off, else keep it on
-                            else:
-                                held = True
-                    if held == False:
-                        note_off(note_prev[0]) #otherwise turn it off, regardless of note type
+                for note_curr in sequence[seq_pos]:
+                    if note_prev[:1] == note_curr[:1]:# if the previous note is also in the current step
+                        if note_curr[2] == "hit":
+                            note_off(note_prev[0]) #if its a hit, turn it off, else keep it on
+                        else:
+                            held = True
+                if held == False:
+                    note_off(note_prev[0]) #otherwise turn it off, regardless of note type
                         
-                else: #for molego only one note is on at a time
-                    for note_curr in sequence[seq_pos]:
-                        if note_prev[:1] == note_curr[:1]:# if the previous note is also in the current step
-                            if note_curr[2] == "hit":
-                                note_off(note_prev[0])
-                                #note_on(note_prev[0], bender=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((note_curr[0]-note_prev[0])/12), offset= 0.0, phase_offset= 0.0, once=True, interpolate=True))
-                            else:
-                                held = True
-                    if held == False: #The molego_note_order is being cleared for some reason
-                        if len(molego_note_order) == 0: #It's the first pass
-                            pass
+                # else: #for molego only one note is on at a time | Completely broken atm |
+                #     for note_curr in sequence[seq_pos]:
+                #         if note_prev[:1] == note_curr[:1]:# if the previous note is also in the current step
+                #             if note_curr[2] == "hit":
+                #                 note_off(note_prev[0])
+                #                 #note_on(note_prev[0], bender=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((note_curr[0]-note_prev[0])/12), offset= 0.0, phase_offset= 0.0, once=True, interpolate=True))
+                #             else:
+                #                 held = True
+                #     if held == False: #The molego_note_order is being cleared for some reason
+                #         if len(molego_note_order) == 0: #It's the first pass
+                #             pass
 
-                        elif len(molego_note_order) == 1: #It's the last key
-                            note_off(note_prev[0])
-                            molego_note_order.remove(molego_note_order[0])
+                #         elif len(molego_note_order) == 1: #It's the last key
+                #             note_off(note_prev[0])
+                #             molego_note_order.remove(molego_note_order[0])
                         
-                        elif note_prev[0] in molego_note_order and note_prev[0] != molego_note_order[-1]: #There's other keys being pressed that's not the last
-                            molego_note_order.remove(note_prev[0])
+                #         elif note_prev[0] in molego_note_order and note_prev[0] != molego_note_order[-1]: #There's other keys being pressed that's not the last
+                #             molego_note_order.remove(note_prev[0])
 
-                        elif note_prev[0] == molego_note_order[-1]: #It's the last key (and currently playing) so turn it off an bend down to the 2nd last pressed
-                            old_note = note_prev[0]
-                            new_note = molego_note_order[-2]
+                #         elif note_prev[0] == molego_note_order[-1]: #It's the last key (and currently playing) so turn it off an bend down to the 2nd last pressed
+                #             old_note = note_prev[0]
+                #             new_note = molego_note_order[-2]
 
-                            note_off(note_prev[0])
-                            note_off(old_note)
-                            old_note = molego_note_order[-1]
-                            note_on(molego_note_order[-1], bender=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((new_note-molego_note_order[-1])/12), offset= 0.0, phase_offset= 0.0, once=True, interpolate=True))
-                            molego_note_order.remove(molego_note_order[-1])
+                #             note_off(note_prev[0])
+                #             note_off(old_note)
+                #             old_note = molego_note_order[-1]
+                #             note_on(molego_note_order[-1], bender=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((new_note-molego_note_order[-1])/12), offset= 0.0, phase_offset= 0.0, once=True, interpolate=True))
+                #            molego_note_order.remove(molego_note_order[-1])
 
 
 
@@ -408,20 +436,7 @@ while True:
                 leds[key_3] = (255, 255, 255) #set key3 to tempo
                 for note in sequence[seq_pos]:
                     if note[2] == "hit":
-                        if molego_onoff == 0:
-                            note_on(note[0], bender=None)
-
-                        else:
-                            #no other notes held
-                            if len(notes_pressed) == 0:
-                                note_on(note[0], bender=None)
-                            else:
-                                old_note = next(iter(notes_pressed))
-                                new_note = note[0]
-
-                                note_off(old_note)
-                                note_on(old_note, bender=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((new_note-old_note)/12), offset= 0.0, phase_offset= 0.0, once=True, interpolate=True))
-                            molego_note_order.append(note[0])
+                        note_on(note[0], bender=None)
 
             leds[piano_keys[light_pos]] = (255, 255, 255)
             leds[piano_keys[light_pos-1]] = piano_bg[int(((seq_pos/8) % 4))]
@@ -453,12 +468,15 @@ while True:
                             note_on(get_note(keynum, scale, octave, "midi"), bender=None)
                             note_label.text = str(get_note(keynum, scale, octave, "text"))
                         else:
-                            old_note = next(iter(notes_pressed))
+                            
                             new_note = get_note(keynum, scale, octave, "midi")
 
-                            note_off(old_note)
-                            note_on(molego_note_order[-1], bender=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((new_note-molego_note_order[-1])/12), offset= 0.0, phase_offset= 0.0, once=True, interpolate=True))
-                            # turn off old note, turn on old note with bend to new note
+                            for note in osc_a_notes:
+                                note.bend = synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*(((new_note-molego_note_order[-1]) )/12), offset= (molego_note_order[-1]-molego_note_order[0])/12, phase_offset= 0.0, once=True, interpolate=True)
+
+                            for note in osc_b_notes:
+                                note.bend = synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*(((new_note-molego_note_order[-1]) )/12), offset= (molego_note_order[-1]-molego_note_order[0])/12, phase_offset= 0.0, once=True, interpolate=True)
+                        
                         molego_note_order.append(get_note(keynum, scale, octave, "midi"))
                         
 
@@ -476,11 +494,12 @@ while True:
                         elif get_note(keynum, scale, octave, "midi") == molego_note_order[-1]: #It's the last key (and currently playing) so turn it off an bend down to the 2nd last pressed
                             old_note = next(iter(notes_pressed))
                             new_note = molego_note_order[-2]
+                            for note in osc_a_notes:
+                                note.bend = synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((new_note-molego_note_order[-1])/12), offset= (molego_note_order[-1]-molego_note_order[0])/12, phase_offset= 0.0, once=True, interpolate=True)
 
-                            note_off(get_note(keynum, scale, octave, "midi"))
-                            note_off(old_note)
-                            old_note = molego_note_order[-1]
-                            note_on(molego_note_order[-1], bender=synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((new_note-molego_note_order[-1])/12), offset= 0.0, phase_offset= 0.0, once=True, interpolate=True))
+                            for note in osc_b_notes:
+                                note.bend = synthio.LFO(waveform=triangle_wave_int16, rate=molego_time, scale= 3.2897334*((new_note-molego_note_order[-1])/12), offset= (molego_note_order[-1]-molego_note_order[0])/12, phase_offset= 0.0, once=True, interpolate=True)
+
                             molego_note_order.remove(molego_note_order[-1])
 
 
@@ -827,7 +846,7 @@ while True:
             elif encoder_mode == 5:  # change voices
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
-                if num_oscs_a + encoder_delta >= 1 and num_oscs_a + encoder_delta <= 5:
+                if num_oscs_a + encoder_delta >= 1 and num_oscs_a + encoder_delta <= 12:
                     num_oscs_a += encoder_delta
                 label7.text=">Voices:"+str(num_oscs_a)
 
@@ -893,7 +912,7 @@ while True:
             elif encoder_mode == 5:  # change voices
                 encoder_delta = (encoder_val - encoder_val_last)
                 encoder_val_last = encoder_val
-                if num_oscs_b + encoder_delta >= 1 and num_oscs_b + encoder_delta <= 5:
+                if num_oscs_b + encoder_delta >= 1 and num_oscs_b + encoder_delta <= 12:
                     num_oscs_b += encoder_delta
                 label7.text=">Voices:"+str(num_oscs_b)
 
