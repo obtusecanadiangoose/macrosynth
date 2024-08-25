@@ -214,6 +214,9 @@ def note_on(notenum, bender):
     notes = []
     f = synthio.midi_to_hz(notenum)
 
+    osc_a_notes_new = []
+    osc_b_notes_new = []
+
     #oscA
     if lvl1 > 0.0:
         for i in range(num_oscs_a):
@@ -226,7 +229,7 @@ def note_on(notenum, bender):
 
             vibrato.retrigger()
             #oscA
-            osc_a_notes.append( synthio.Note( frequency=fr, envelope=osc1_env, waveform=waveforms[osc1_wave], filter=amp_filter, 
+            osc_a_notes_new.append( synthio.Note( frequency=fr, envelope=osc1_env, waveform=waveforms[osc1_wave], filter=amp_filter, 
                                         bend=bender
                                         ) )
          
@@ -238,14 +241,16 @@ def note_on(notenum, bender):
                 fr = 0
             vibrato.retrigger()
             #oscB
-            osc_b_notes.append( synthio.Note( frequency=fr, envelope=osc2_env, waveform=waveforms[osc2_wave], filter=amp_filter, 
+            osc_b_notes_new.append( synthio.Note( frequency=fr, envelope=osc2_env, waveform=waveforms[osc2_wave], filter=amp_filter, 
                                         bend=bender
                                         ) )
             
-    for note in osc_b_notes:
+    for note in osc_a_notes_new:
         notes.append(note)
-    for note in osc_a_notes:
+        osc_a_notes.append(note)
+    for note in osc_b_notes_new:
         notes.append(note)
+        osc_b_notes.append(note)
 
     #     print("fr:")
     #notes.append( synthio.Note( frequency=164.82, envelope=amp_env, waveform=waveform) )
@@ -363,7 +368,7 @@ if lights:
 ##################################### MAIN LOOP #############################################
 while True:
     now = ticks_ms()
-    #debug_label.text = str(reset_env())
+    #debug_label.text = str(notes_pressed)
     enc_sw_held = enc_sw_press_millis !=0  and (now - enc_sw_press_millis > 500)    
     if seq_play:
 ##################################### SEQ HANDLING #############################################
